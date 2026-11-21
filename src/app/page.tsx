@@ -48,6 +48,7 @@ const demos = [
   { slug: "caribestay", name: "Caribe Stay", type: "Hotel boutique en el Caribe", problem: "Cotizar noches y habitaciones manualmente toma tiempo y se pierden reservas.", tech: ["Next.js", "TypeScript", "Cálculo de fechas"], preview: <Photo id="1520250497591-112f2f40a3f4" alt="Piscina de hotel tropical entre palmeras" className="absolute inset-0 bg-emerald-900" w={900} /> },
   { slug: "ferrecontrol", name: "FerreControl", type: "Dashboard de ventas e inventario", problem: "No se sabe qué se vende más ni qué productos están por agotarse.", tech: ["Recharts", "TypeScript", "Filtros dinámicos"], preview: <MiniDashboard /> },
   { slug: "smartbooking", name: "SmartBooking", type: "Sistema de agendamiento de citas", problem: "Agendar por llamada genera cruces de horarios y citas olvidadas.", tech: ["React", "localStorage", "Flujo por pasos"], preview: <MiniCalendar /> },
+  { slug: "ironclub", name: "IronClub Gym", type: "Fitness y gestión de miembros", problem: "Mensualidades en cuadernos y Excel: socios vencidos que nadie cobra a tiempo.", tech: ["localStorage", "Framer Motion", "Calculadora IMC", "WhatsApp"], preview: <Photo id="1605296867304-46d5465a13f1" alt="Atleta levantando una barra en un gimnasio oscuro" className="absolute inset-0 bg-zinc-900" w={1200} /> },
 ];
 
 export default function Home() {
@@ -110,13 +111,13 @@ export default function Home() {
       </header>
 
       <section id="inicio" className="relative pt-36 pb-28 overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.15]" style={{ backgroundImage: "linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)", backgroundSize: "56px 56px", maskImage: "radial-gradient(ellipse 70% 60% at 50% 0%, black, transparent)" }} />
+        <div className="bg-grid absolute inset-0" />
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[480px] w-[900px] rounded-full bg-cyan-500/20 blur-[120px]" />
         <div className="absolute top-40 right-[-10%] h-96 w-96 rounded-full bg-violet-500/20 blur-[120px]" />
         <div className="relative mx-auto max-w-6xl px-5 grid lg:grid-cols-2 gap-14 items-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-zinc-300 mb-6"><MapPin size={13} className="text-cyan-400" /> {siteConfig.location} · Región Caribe</span>
-            <h1 className="font-display text-4xl sm:text-6xl font-bold leading-[1.05] tracking-tight">
+            <h1 className="font-display text-4xl sm:text-6xl font-extrabold leading-[1.05] tracking-tight">
               Transformo ideas y procesos en <span className="bg-gradient-to-r from-cyan-300 via-cyan-400 to-violet-500 bg-clip-text text-transparent">soluciones digitales.</span>
             </h1>
             <p className="mt-6 text-zinc-400 text-lg leading-relaxed">Desarrollo páginas web, automatizaciones y herramientas inteligentes que ayudan a los negocios a crecer, optimizar su tiempo y mejorar la experiencia de sus clientes.</p>
@@ -152,7 +153,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal>
             <p className="text-sm font-medium text-cyan-400">Qué hago</p>
-            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mt-2">Servicios</h2>
+            <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight mt-2">Servicios</h2>
             <p className="text-zinc-400 mt-3 max-w-xl">Soluciones prácticas para negocios reales.</p>
           </Reveal>
           <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -174,12 +175,12 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal>
             <p className="text-sm font-medium text-violet-400">Portafolio</p>
-            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mt-2">Demostraciones interactivas</h2>
-            <p className="text-zinc-400 mt-3">Cuatro aplicaciones funcionales. Pruébalas tú mismo.</p>
+            <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight mt-2">Demostraciones interactivas</h2>
+            <p className="text-zinc-400 mt-3">Cinco aplicaciones funcionales. Pruébalas tú mismo.</p>
           </Reveal>
           <div className="mt-12 grid md:grid-cols-2 gap-5">
             {demos.map(({ slug, name, type, problem, tech, preview }, i) => (
-              <Reveal key={slug} delay={(i % 2) * 0.08}>
+              <Reveal key={slug} delay={(i % 2) * 0.08} className={slug === "ironclub" ? "md:col-span-2" : ""}>
                 <GlowCard className="flex flex-col h-full">
                   <div className="relative h-48 overflow-hidden border-b border-white/10">
                     {preview}
@@ -204,7 +205,7 @@ export default function Home() {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-72 w-[700px] rounded-full bg-violet-500/15 blur-[120px]" />
         <div className="relative mx-auto max-w-3xl px-5">
           <Reveal>
-            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-center">¿Tienes un negocio y quieres mejorarlo con tecnología?</h2>
+            <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-center">¿Tienes un negocio y quieres mejorarlo con tecnología?</h2>
             <p className="text-zinc-400 text-center mt-3">Cuéntame tu idea y te respondo con una propuesta.</p>
           </Reveal>
           <Reveal delay={0.1}>
