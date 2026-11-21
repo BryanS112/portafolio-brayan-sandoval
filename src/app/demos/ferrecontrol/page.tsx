@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DollarSign, Percent, Package, AlertTriangle, Search, LayoutDashboard, Hammer } from "lucide-react";
@@ -83,89 +84,130 @@ export default function FerreControl() {
     .filter(({ p }) => (!onlyLow || p.stock <= p.min) && (p.name + p.sku).toLowerCase().includes(q.toLowerCase()))
     .map(({ p }) => p);
 
+  const catSales = useMemo(() => {
+    const out: Record<string, number> = {};
+    PRODUCTS.forEach((p, i) => {
+      let s = 0;
+      for (let d = 0; d < days; d++) s += units(i, d, p.base) * p.price;
+      out[p.cat] = (out[p.cat] || 0) + s;
+    });
+    return Object.entries(out).sort((a, b) => b[1] - a[1]);
+  }, [days]);
+  const maxCat = Math.max(...catSales.map(([, v]) => v), 1);
+
   const cards = [
-    { icon: DollarSign, label: `Ventas (${PERIODS.find((p) => p.id === period)!.label.toLowerCase()})`, value: cop(kpi.sales), color: "text-cyan-400" },
-    { icon: Percent, label: "Margen estimado", value: `${kpi.margin.toFixed(1)} %`, color: "text-emerald-400" },
-    { icon: Package, label: "Total productos", value: String(filtered.length), color: "text-violet-400" },
-    { icon: AlertTriangle, label: "Alertas de stock bajo", value: String(low.length), color: "text-red-400" },
+    { icon: DollarSign, label: "Ventas del período", value: cop(kpi.sales), tint: "bg-sky-50 text-sky-600" },
+    { icon: Percent, label: "Margen estimado", value: `${kpi.margin.toFixed(1)} %`, tint: "bg-emerald-50 text-emerald-600" },
+    { icon: Package, label: "Total productos", value: String(filtered.length), tint: "bg-violet-50 text-violet-600" },
+    { icon: AlertTriangle, label: "Alertas de stock bajo", value: String(low.length), tint: "bg-red-50 text-red-600" },
   ];
 
+  const card = "rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.04)]";
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
       <DemoBar name="FerreControl" />
       <div className="pt-20 mx-auto max-w-6xl px-4 pb-12">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center"><Hammer /></div>
-            <div><h1 className="text-2xl font-extrabold flex items-center gap-2"><LayoutDashboard size={20} /> FerreControl</h1><p className="text-xs text-slate-500">Ferretería El Constructor (ficticia)</p></div>
+            <div className="h-10 w-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-sm"><Hammer size={20} strokeWidth={1.8} /></div>
+            <div><h1 className="text-xl font-bold tracking-tight flex items-center gap-2"><LayoutDashboard size={18} className="text-slate-400" /> FerreControl</h1><p className="text-xs text-slate-500">Ferretería El Constructor (ficticia) · Panel de ventas e inventario</p></div>
           </div>
-          <span className="rounded-full bg-violet-100 text-violet-700 text-xs font-medium px-3 py-1">{DEMO_BADGE}</span>
-        </div>
+          <span className="rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-xs font-medium px-3 py-1">{DEMO_BADGE}</span>
+        </motion.div>
 
-        <div className="flex flex-wrap gap-3 items-center rounded-xl bg-white border border-slate-200 p-3 mb-5">
+        <div className={`${card} flex flex-wrap gap-3 items-center p-3 mb-5`}>
           <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
             {PERIODS.map((p) => (
-              <button key={p.id} onClick={() => setPeriod(p.id)} className={`px-3 py-1.5 text-sm rounded-md font-medium transition ${period === p.id ? "bg-slate-900 text-white" : "hover:bg-white"}`}>{p.label}</button>
+              <button key={p.id} onClick={() => setPeriod(p.id)} className={`relative px-3 py-1.5 text-sm rounded-md font-medium transition ${period === p.id ? "text-slate-900" : "text-slate-500 hover:text-slate-800"}`}>
+                {period === p.id && <motion.span layoutId="perpill" className="absolute inset-0 rounded-md bg-white shadow-sm" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
+                <span className="relative">{p.label}</span>
+              </button>
             ))}
           </div>
-          <select value={cat} onChange={(e) => setCat(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-            {CATS.map((c) => <option key={c}>{c === "Todas" ? "Todas las categorías" : c}</option>)}
+          <select value={cat} onChange={(e) => setCat(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10">
+            {CATS.map((c) => <option key={c} value={c}>{c === "Todas" ? "Todas las categorías" : c}</option>)}
           </select>
-          {cat !== "Todas" && <button onClick={() => setCat("Todas")} className="text-sm text-cyan-700 underline">Limpiar categoría</button>}
+          {cat !== "Todas" && <button onClick={() => setCat("Todas")} className="text-sm text-indigo-600 hover:underline">Limpiar categoría</button>}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {cards.map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="rounded-xl bg-slate-900 text-white p-4">
-              <Icon className={color} size={20} />
-              <p className="text-xs text-slate-400 mt-2">{label}</p>
-              <p className="text-xl sm:text-2xl font-bold mt-1">{value}</p>
-            </div>
+          {cards.map(({ icon: Icon, label, value, tint }, i) => (
+            <motion.div key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} whileHover={{ y: -2 }} className={`${card} p-4`}>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-500">{label}</p>
+                <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${tint}`}><Icon size={16} /></span>
+              </div>
+              <motion.p key={value} initial={{ opacity: 0.3, y: 4 }} animate={{ opacity: 1, y: 0 }} className="text-xl sm:text-2xl font-bold tracking-tight mt-3 tabular-nums">{value}</motion.p>
+            </motion.div>
           ))}
         </div>
 
-        <div className="rounded-xl bg-white border border-slate-200 p-4 mt-5">
-          <h2 className="font-bold mb-3">Ventas en el tiempo {cat !== "Todas" && <span className="text-slate-500 font-normal">· {cat}</span>}</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series}>
-                <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#06b6d4" stopOpacity={0.5} /><stop offset="95%" stopColor="#06b6d4" stopOpacity={0} /></linearGradient></defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="dia" tick={{ fontSize: 11 }} minTickGap={20} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${Math.round(Number(v) / 1000)}k`} width={55} />
-                <Tooltip formatter={(v) => [cop(Number(v)), "Ventas"]} />
-                <Area type="monotone" dataKey="ventas" stroke="#0891b2" strokeWidth={2} fill="url(#g)" />
-              </AreaChart>
-            </ResponsiveContainer>
+        <div className="grid lg:grid-cols-3 gap-5 mt-5">
+          <div className={`${card} p-5 lg:col-span-2`}>
+            <h2 className="font-semibold text-sm">Ventas en el tiempo {cat !== "Todas" && <span className="text-slate-400 font-normal">· {cat}</span>}</h2>
+            <div className="h-64 mt-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={series} margin={{ left: 0, right: 8, top: 8 }}>
+                  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient></defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} minTickGap={24} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.round(Number(v) / 1000)}k`} width={52} />
+                  <Tooltip
+                    cursor={{ stroke: "#6366f1", strokeDasharray: "4 4" }}
+                    content={({ active, payload, label }) =>
+                      active && payload?.length ? (
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-lg">
+                          <p className="text-xs text-slate-500">{label}</p>
+                          <p className="text-sm font-bold flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-indigo-500" /> {cop(Number(payload[0].value))}</p>
+                        </div>
+                      ) : null
+                    }
+                  />
+                  <Area type="monotone" dataKey="ventas" stroke="#6366f1" strokeWidth={2} fill="url(#g)" activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className={`${card} p-5`}>
+            <h2 className="font-semibold text-sm">Ventas por categoría</h2>
+            <ul className="mt-4 space-y-3.5">
+              {catSales.map(([c, v]) => (
+                <li key={c} className={`cursor-pointer ${cat !== "Todas" && cat !== c ? "opacity-40" : ""} transition`} onClick={() => setCat(cat === c ? "Todas" : c)}>
+                  <div className="flex justify-between text-xs mb-1"><span className="font-medium">{c}</span><span className="text-slate-500 tabular-nums">{cop(v)}</span></div>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><motion.div className="h-full rounded-full bg-indigo-500" initial={false} animate={{ width: `${(v / maxCat) * 100}%` }} transition={{ duration: 0.5 }} /></div>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        <div className="rounded-xl bg-white border border-slate-200 p-4 mt-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <h2 className="font-bold">Inventario</h2>
+        <div className={`${card} p-5 mt-5`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="font-semibold text-sm">Inventario</h2>
             <div className="flex flex-wrap gap-2 items-center">
-              <label className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-1.5 text-sm"><Search size={16} className="text-slate-400" />
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto o SKU" className="outline-none" />
+              <label className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10"><Search size={15} className="text-slate-400" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto o SKU" className="outline-none bg-transparent" />
               </label>
-              <button onClick={() => setOnlyLow(!onlyLow)} className={`text-sm rounded-lg px-3 py-1.5 border transition ${onlyLow ? "bg-red-600 border-red-600 text-white" : "border-slate-300 hover:bg-slate-50"}`}>Solo stock crítico</button>
+              <button onClick={() => setOnlyLow(!onlyLow)} className={`text-sm rounded-lg px-3 py-1.5 border transition ${onlyLow ? "bg-red-600 border-red-600 text-white" : "border-slate-200 hover:bg-slate-50"}`}>Solo stock crítico</button>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-slate-500 border-b"><th className="py-2">SKU</th><th>Producto</th><th>Categoría</th><th className="text-right">Precio</th><th className="text-right">Vendidas</th><th className="text-right">Stock</th><th className="text-center">Estado</th></tr></thead>
+              <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400 border-b border-slate-100"><th className="py-2 font-medium">SKU</th><th className="font-medium">Producto</th><th className="font-medium">Categoría</th><th className="text-right font-medium">Precio</th><th className="text-right font-medium">Vendidas</th><th className="text-right font-medium">Stock</th><th className="text-center font-medium">Estado</th></tr></thead>
               <tbody>
                 {rows.map((p) => {
                   const crit = p.stock <= p.min;
                   return (
-                    <tr key={p.sku} className="border-b last:border-0 hover:bg-slate-50">
-                      <td className="py-2 text-slate-500">{p.sku}</td><td className="font-medium">{p.name}</td><td>{p.cat}</td>
-                      <td className="text-right">{cop(p.price)}</td><td className="text-right">{ranking[p.sku] ?? 0}</td>
-                      <td className="text-right">{p.stock} <span className="text-slate-400">/ mín {p.min}</span></td>
-                      <td className="text-center"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${crit ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>{crit ? "Stock crítico" : "Normal"}</span></td>
+                    <tr key={p.sku} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition">
+                      <td className="py-3 text-slate-400 tabular-nums">{p.sku}</td><td className="font-medium">{p.name}</td><td className="text-slate-600">{p.cat}</td>
+                      <td className="text-right tabular-nums">{cop(p.price)}</td><td className="text-right tabular-nums">{ranking[p.sku] ?? 0}</td>
+                      <td className="text-right tabular-nums">{p.stock} <span className="text-slate-400">/ mín {p.min}</span></td>
+                      <td className="text-center"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${crit ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"}`}><span className={`h-1.5 w-1.5 rounded-full ${crit ? "bg-red-500" : "bg-emerald-500"}`} />{crit ? "Stock crítico" : "Normal"}</span></td>
                     </tr>
                   );
                 })}
-                {!rows.length && <tr><td colSpan={7} className="py-8 text-center text-slate-500">Sin resultados para tu búsqueda.</td></tr>}
+                {!rows.length && <tr><td colSpan={7} className="py-10 text-center text-slate-500">Sin resultados para tu búsqueda.</td></tr>}
               </tbody>
             </table>
           </div>

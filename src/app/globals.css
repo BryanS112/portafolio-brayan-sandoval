@@ -1,5 +1,13 @@
 @import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-display: var(--font-space), var(--font-jakarta), sans-serif;
+  --font-serif-grill: var(--font-playfair), Georgia, serif;
+  --font-serif-resort: var(--font-cormorant), Georgia, serif;
+}
+
 html { scroll-behavior: smooth; }
 body { font-family: var(--font-jakarta), system-ui, sans-serif; }
-@keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
-.floaty { animation: floaty 5s ease-in-out infinite; }
+h1, h2, h3 { text-wrap: balance; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

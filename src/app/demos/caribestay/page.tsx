@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Wifi, Wind, Waves, Coffee, Tv, Bath, MessageCircle, Moon, Users, CalendarDays, Palmtree } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Wifi, Wind, Waves, Coffee, Tv, Bath, MessageCircle, Moon, Users, CalendarDays, Check } from "lucide-react";
 import DemoBar from "@/components/DemoBar";
+import Photo from "@/components/Photo";
+import Reveal from "@/components/Reveal";
 import { cop, whatsappLink, DEMO_BADGE } from "@/config/site";
 
 const ROOMS = [
-  { id: "std", name: "Habitación Brisa", price: 280000, cap: 2, desc: "Acogedora, con balcón y vista al jardín.", am: [[Wifi, "Wi-Fi"], [Wind, "Aire acond."], [Tv, "TV smart"]] },
-  { id: "sup", name: "Suite Marina", price: 450000, cap: 3, desc: "Cama king, sala y vista parcial al mar.", am: [[Wifi, "Wi-Fi"], [Wind, "Aire acond."], [Coffee, "Desayuno"], [Bath, "Jacuzzi"]] },
-  { id: "vil", name: "Villa Coral", price: 780000, cap: 5, desc: "Privada con piscina y terraza frente al mar.", am: [[Wifi, "Wi-Fi"], [Waves, "Piscina"], [Coffee, "Desayuno"], [Wind, "Aire acond."]] },
+  { id: "std", name: "Habitación Brisa", price: 280000, cap: 2, img: "1582719508461-905c673771fd", desc: "Acogedora, con balcón y vista al jardín.", am: [[Wifi, "Wi-Fi"], [Wind, "Aire acondicionado"], [Tv, "TV smart"]] },
+  { id: "sup", name: "Suite Marina", price: 450000, cap: 3, img: "1602002418082-a4443e081dd1", desc: "Cama king, sala y vista parcial al mar.", am: [[Wifi, "Wi-Fi"], [Wind, "Aire acondicionado"], [Coffee, "Desayuno"], [Bath, "Jacuzzi"]] },
+  { id: "vil", name: "Villa Coral", price: 780000, cap: 5, img: "1566073771259-6a8506099945", desc: "Privada con piscina y terraza frente al mar.", am: [[Wifi, "Wi-Fi"], [Waves, "Piscina"], [Coffee, "Desayuno"], [Wind, "Aire acondicionado"]] },
 ] as const;
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -41,71 +44,107 @@ export default function CaribeStay() {
     if (nights < 1) return setErr("La salida debe ser posterior a la entrada.");
     if (name.trim().length < 2) return setErr("Escribe tu nombre.");
     setErr("");
-    const msg = `Hola, soy ${name}. Quisiera verificar disponibilidad en Caribe Stay (DEMO):\n\n🏨 ${r.name}\n📅 Entrada: ${inD}\n📅 Salida: ${outD}\n🌙 Noches: ${nights}\n👥 Huéspedes: ${guests}\n💰 Total estimado: ${cop(total)} COP`;
+    const msg = `Hola, soy ${name}. Quisiera verificar disponibilidad en Caribe Stay (DEMO):\n\nHabitación: ${r.name}\nEntrada: ${inD}\nSalida: ${outD}\nNoches: ${nights}\nHuéspedes: ${guests}\nTotal estimado: ${cop(total)} COP`;
     window.open(whatsappLink(msg), "_blank", "noopener");
   }
+  const field = "mt-2 w-full border border-[#0F292E]/25 bg-white px-3 py-3 text-sm outline-none focus:border-[#0F292E] transition";
+  const lbl = "text-[11px] tracking-[0.2em] uppercase text-[#0F292E]/70";
 
   return (
-    <div className="min-h-screen bg-[#faf6ee] text-slate-800">
+    <div className="min-h-screen bg-[#F7F5F0] text-[#0F292E]">
       <DemoBar name="Caribe Stay" />
-      <header className="pt-28 pb-16 text-center bg-gradient-to-b from-[#0b2545] to-[#13538a] text-white px-5">
-        <Palmtree className="mx-auto text-amber-300" size={40} />
-        <h1 className="text-4xl sm:text-5xl font-serif mt-3">Caribe Stay</h1>
-        <p className="text-sky-100 mt-2">Hotel boutique frente al mar · Atlántico, Colombia</p>
-        <p className="mt-5 inline-block rounded-full bg-white/15 px-4 py-1 text-xs">{DEMO_BADGE}</p>
-        <div><a href="#reserva" className="mt-6 inline-block rounded-full bg-amber-300 text-[#0b2545] font-semibold px-6 py-3 hover:bg-amber-200">Cotizar mi estadía</a></div>
+
+      <header className="relative h-[88vh] min-h-[560px] flex items-end bg-[#0F292E] text-white">
+        <Photo id="1540541338287-41700207dee6" alt="Resort frente al mar con piscina y palmeras" className="absolute inset-0 bg-[#0F292E]" w={1800} priority sizes="100vw" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0F292E] via-[#0F292E]/30 to-black/20" />
+        <div className="relative mx-auto max-w-6xl w-full px-6 pb-20">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
+            <p className="text-[11px] tracking-[0.35em] uppercase text-[#E3D3AE]">Hotel boutique · Atlántico, Colombia</p>
+            <h1 className="font-serif-resort text-6xl sm:text-8xl font-medium tracking-tight mt-4 leading-[0.95]">Caribe Stay</h1>
+            <p className="mt-5 max-w-lg text-white/85 text-lg leading-relaxed">Un refugio frente al mar donde el tiempo se detiene. Brisa, silencio y hospitalidad costeña.</p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <a href="#reserva" className="bg-[#F7F5F0] text-[#0F292E] hover:bg-white px-8 py-3.5 text-sm tracking-widest uppercase font-medium transition">Cotizar mi estadía</a>
+              <span className="text-xs border border-white/30 px-3 py-2 text-white/85">{DEMO_BADGE}</span>
+            </div>
+          </motion.div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-5 py-12 space-y-14">
+      <main className="mx-auto max-w-6xl px-6 py-24 space-y-28">
         <section>
-          <h2 className="text-3xl font-serif text-[#0b2545] mb-6">Nuestras habitaciones</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {ROOMS.map((x) => (
-              <div key={x.id} className={`rounded-2xl bg-white overflow-hidden shadow-sm border-2 transition ${room === x.id ? "border-[#13538a]" : "border-transparent"}`}>
-                <div className="h-36 bg-gradient-to-br from-amber-200 via-sky-200 to-[#13538a] flex items-end p-3">
-                  <span className="rounded-full bg-white/90 text-xs px-2 py-1 flex items-center gap-1"><Users size={12} /> Hasta {x.cap}</span>
-                </div>
-                <div className="p-5">
-                  <h3 className="font-serif text-xl text-[#0b2545]">{x.name}</h3>
-                  <p className="text-sm text-slate-600 mt-1">{x.desc}</p>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {x.am.map(([Icon, l]) => <span key={l} className="flex items-center gap-1 text-xs bg-sky-50 text-[#13538a] rounded-full px-2 py-1"><Icon size={12} /> {l}</span>)}
+          <Reveal className="max-w-xl">
+            <p className={lbl}>Alojamiento</p>
+            <h2 className="font-serif-resort text-5xl mt-3 tracking-tight">Nuestras habitaciones</h2>
+          </Reveal>
+          <div className="mt-12 grid md:grid-cols-3 gap-8">
+            {ROOMS.map((x, i) => (
+              <Reveal key={x.id} delay={i * 0.1}>
+                <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className={`bg-white group h-full flex flex-col ring-1 transition ${room === x.id ? "ring-[#0F292E]" : "ring-[#0F292E]/10"}`}>
+                  <div className="relative h-64 overflow-hidden">
+                    <Photo id={x.img} alt={x.name} w={800} className="absolute inset-0 bg-[#0F292E]/80 transition duration-700 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 33vw" />
+                    <span className="absolute bottom-3 left-3 bg-[#F7F5F0] text-[11px] tracking-widest uppercase px-2.5 py-1 flex items-center gap-1.5"><Users size={12} /> Hasta {x.cap}</span>
                   </div>
-                  <p className="mt-4 text-2xl font-bold text-[#0b2545]">{cop(x.price)} <span className="text-sm font-normal text-slate-500">/ noche</span></p>
-                  <button onClick={() => pickRoom(x.id)} className={`mt-3 w-full rounded-full py-2 font-semibold transition ${room === x.id ? "bg-[#13538a] text-white" : "bg-[#0b2545] text-white hover:bg-[#13538a]"}`}>{room === x.id ? "Seleccionada ✓" : "Seleccionar"}</button>
-                </div>
-              </div>
+                  <div className="p-6 flex flex-col flex-1">
+                    <h3 className="font-serif-resort text-3xl">{x.name}</h3>
+                    <p className="text-sm text-[#0F292E]/70 mt-2 leading-relaxed">{x.desc}</p>
+                    <ul className="mt-4 grid grid-cols-2 gap-y-2 text-xs text-[#0F292E]/80">
+                      {x.am.map(([Icon, l]) => <li key={l} className="flex items-center gap-1.5"><Icon size={14} strokeWidth={1.4} className="text-[#5E6B3E]" /> {l}</li>)}
+                    </ul>
+                    <div className="mt-auto pt-6">
+                      <p className="font-serif-resort text-3xl">{cop(x.price)} <span className="font-sans text-xs text-[#0F292E]/60">/ noche</span></p>
+                      <button onClick={() => pickRoom(x.id)} className={`mt-4 w-full py-3 text-xs tracking-[0.2em] uppercase font-medium transition flex items-center justify-center gap-2 ${room === x.id ? "bg-[#5E6B3E] text-white" : "bg-[#0F292E] text-white hover:bg-[#1b4048]"}`}>
+                        {room === x.id ? <><Check size={14} /> Seleccionada</> : "Seleccionar"}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reveal>
             ))}
           </div>
         </section>
 
-        <section id="reserva" className="rounded-3xl bg-white shadow-lg p-6 sm:p-8 border border-amber-100">
-          <h2 className="text-3xl font-serif text-[#0b2545] flex items-center gap-2"><CalendarDays /> Cotiza tu reserva</h2>
-          <div className="grid sm:grid-cols-2 gap-4 mt-6">
-            <label className="text-sm">Habitación
-              <select value={room} onChange={(e) => pickRoom(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2">{ROOMS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-            </label>
-            <label className="text-sm">Huéspedes (máx. {r.cap})
-              <input type="number" min={1} max={r.cap} value={guests} onChange={(e) => setGuests(Math.min(r.cap, Math.max(1, Number(e.target.value) || 1)))} className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </label>
-            <label className="text-sm">Fecha de entrada
-              <input type="date" min={today()} value={inD} onChange={(e) => { setIn(e.target.value); if (outD && outD <= e.target.value) setOut(""); }} className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </label>
-            <label className="text-sm">Fecha de salida
-              <input type="date" min={inD || today()} value={outD} onChange={(e) => setOut(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </label>
-            <label className="text-sm sm:col-span-2">Tu nombre
-              <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </label>
-          </div>
-          <div className="mt-6 rounded-2xl bg-sky-50 p-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-[#0b2545]"><Moon size={20} /> <span className="font-semibold">{nights} {nights === 1 ? "noche" : "noches"}</span> × {cop(r.price)}</div>
-            <div className="text-right"><p className="text-xs text-slate-500">Total estimado</p><p className="text-3xl font-bold text-[#0b2545]">{cop(total)}</p></div>
-          </div>
-          {err && <p className="text-red-600 text-sm mt-3">{err}</p>}
-          <button onClick={send} className="mt-5 w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold px-8 py-3"><MessageCircle size={18} /> Solicitar disponibilidad por WhatsApp</button>
+        <section className="grid md:grid-cols-2 gap-0 bg-[#0F292E] text-white overflow-hidden">
+          <Photo id="1571896349842-33c89424de2d" alt="Piscina del hotel al atardecer" className="min-h-[320px] bg-[#0F292E]" w={1000} />
+          <Reveal className="p-10 sm:p-14 flex flex-col justify-center">
+            <p className="text-[11px] tracking-[0.3em] uppercase text-[#E3D3AE]">La experiencia</p>
+            <h2 className="font-serif-resort text-4xl sm:text-5xl mt-3 tracking-tight">Arquitectura tropical, ritmo pausado</h2>
+            <p className="mt-4 text-white/75 leading-relaxed">Espacios abiertos, maderas nobles y jardines que invitan a quedarse un día más. Desayuno de la región incluido en suites y villas.</p>
+          </Reveal>
+        </section>
+
+        <section id="reserva" className="scroll-mt-24">
+          <Reveal>
+            <div className="bg-white ring-1 ring-[#0F292E]/10 p-8 sm:p-12">
+              <p className={lbl}>Reservas</p>
+              <h2 className="font-serif-resort text-5xl mt-3 tracking-tight flex items-center gap-3"><CalendarDays size={34} strokeWidth={1.2} /> Cotiza tu reserva</h2>
+              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5 mt-10">
+                <label className={lbl}>Habitación
+                  <select value={room} onChange={(e) => pickRoom(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`}>{ROOMS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                </label>
+                <label className={lbl}>Huéspedes (máx. {r.cap})
+                  <input type="number" min={1} max={r.cap} value={guests} onChange={(e) => setGuests(Math.min(r.cap, Math.max(1, Number(e.target.value) || 1)))} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                </label>
+                <label className={lbl}>Fecha de entrada
+                  <input type="date" min={today()} value={inD} onChange={(e) => { setIn(e.target.value); if (outD && outD <= e.target.value) setOut(""); }} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                </label>
+                <label className={lbl}>Fecha de salida
+                  <input type="date" min={inD || today()} value={outD} onChange={(e) => setOut(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                </label>
+                <label className={`${lbl} sm:col-span-2`}>Tu nombre
+                  <input value={name} onChange={(e) => setName(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                </label>
+              </div>
+              <div className="mt-8 border-t border-[#0F292E]/15 pt-6 flex flex-wrap items-end justify-between gap-4">
+                <div className="flex items-center gap-2 text-[#0F292E]/80"><Moon size={18} strokeWidth={1.4} /> <span className="font-medium"><motion.span key={nights} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="inline-block">{nights}</motion.span> {nights === 1 ? "noche" : "noches"}</span> × {cop(r.price)}</div>
+                <div className="text-right"><p className={lbl}>Total estimado</p><motion.p key={total} initial={{ opacity: 0.4, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="font-serif-resort text-5xl">{cop(total)}</motion.p></div>
+              </div>
+              <AnimatePresence>{err && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-red-700 text-sm mt-4">{err}</motion.p>}</AnimatePresence>
+              <button onClick={send} className="mt-6 w-full sm:w-auto flex items-center justify-center gap-2 bg-[#5E6B3E] hover:bg-[#6d7c48] text-white text-xs tracking-[0.2em] uppercase font-medium px-9 py-4 transition"><MessageCircle size={16} /> Solicitar disponibilidad por WhatsApp</button>
+            </div>
+          </Reveal>
         </section>
       </main>
+      <footer className="border-t border-[#0F292E]/10 py-8 text-center text-xs tracking-widest uppercase text-[#0F292E]/50">Caribe Stay · Hotel ficticio de demostración</footer>
     </div>
   );
 }
