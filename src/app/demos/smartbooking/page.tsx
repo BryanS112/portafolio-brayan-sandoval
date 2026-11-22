@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Smile, Stethoscope, Sparkles, Clock, CheckCircle2, XCircle, CalendarCheck, ShieldCheck, ChevronLeft, Check } from "lucide-react";
+import { Smile, Stethoscope, Sparkles, Clock, CheckCircle2, XCircle, CalendarCheck, ShieldCheck, ChevronLeft, Check, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import DemoBar from "@/components/DemoBar";
-import { cop, DEMO_BADGE } from "@/config/site";
+import DemoCtaBanner from "@/components/DemoCtaBanner";
+import { cop, DEMO_BADGE, whatsappLink } from "@/config/site";
+import { formatBogotaDate, localIsoDate, nextBusinessDays } from "@/lib/date";
 
 const SERVICES = [
   { id: "val", name: "Valoración general", min: 30, price: 40000, icon: Stethoscope },
@@ -15,22 +17,13 @@ const SERVICES = [
 type Status = "Pendiente" | "Confirmada" | "Cancelada";
 type Appt = { id: string; name: string; phone: string; service: string; date: string; time: string; min: number; status: Status };
 
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-function nextDays(n: number) {
-  const out: Date[] = [];
-  const d = new Date(); d.setHours(0, 0, 0, 0);
-  while (out.length < n) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) out.push(new Date(d)); }
-  return out;
-}
-const DAYS = nextDays(8);
-
-const seed = (): Appt[] => [
-  { id: "s1", name: "Laura Gómez", phone: "3001112233", service: "Limpieza dental", date: iso(DAYS[0]), time: "09:00", min: 45, status: "Confirmada" },
-  { id: "s2", name: "Carlos Pérez", phone: "3014445566", service: "Valoración general", date: iso(DAYS[0]), time: "11:00", min: 30, status: "Pendiente" },
-  { id: "s3", name: "Andrea Mejía", phone: "3027778899", service: "Blanqueamiento", date: iso(DAYS[1]), time: "14:00", min: 60, status: "Pendiente" },
+const seed = (days: string[]): Appt[] => [
+  { id: "s1", name: "Laura Gómez", phone: "3001112233", service: "Limpieza dental", date: days[0], time: "09:00", min: 45, status: "Confirmada" },
+  { id: "s2", name: "Carlos Pérez", phone: "3014445566", service: "Valoración general", date: days[0], time: "11:00", min: 30, status: "Pendiente" },
+  { id: "s3", name: "Andrea Mejía", phone: "3027778899", service: "Blanqueamiento", date: days[1], time: "14:00", min: 60, status: "Pendiente" },
 ];
 
 const KEY = "smartbooking-demo-appts";
@@ -39,6 +32,7 @@ export default function SmartBooking() {
   const [tab, setTab] = useState<"cliente" | "admin">("cliente");
   const [step, setStep] = useState(1);
   const [svc, setSvc] = useState<(typeof SERVICES)[number] | null>(null);
+  const [days, setDays] = useState<string[]>([]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [form, setForm] = useState({ name: "", phone: "" });
@@ -48,10 +42,13 @@ export default function SmartBooking() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const next = nextBusinessDays(8, localIsoDate());
+    setDays(next);
     try {
       const s = localStorage.getItem(KEY);
-      setAppts(s ? JSON.parse(s) : seed());
-    } catch { setAppts(seed()); }
+      const parsed = s ? JSON.parse(s) : null;
+      setAppts(Array.isArray(parsed) ? parsed : seed(next));
+    } catch { setAppts(seed(next)); }
     setReady(true);
   }, []);
   useEffect(() => { if (ready) localStorage.setItem(KEY, JSON.stringify(appts)); }, [appts, ready]);
@@ -70,15 +67,16 @@ export default function SmartBooking() {
 
   function confirm() {
     if (form.name.trim().length < 3) return setErr("Escribe el nombre completo.");
-    if (!/^3\d{9}$/.test(form.phone.replace(/\s/g, ""))) return setErr("Ingresa un celular colombiano de 10 dígitos (ej. 3001234567).");
-    const a: Appt = { id: String(Date.now()), name: form.name.trim(), phone: form.phone, service: svc!.name, date, time, min: svc!.min, status: "Pendiente" };
+    const cleanPhone = form.phone.replace(/\s/g, "");
+    if (!/^3\d{9}$/.test(cleanPhone)) return setErr("Ingresa un celular colombiano de 10 dígitos (ej. 3001234567).");
+    const a: Appt = { id: String(Date.now()), name: form.name.trim(), phone: cleanPhone, service: svc!.name, date, time, min: svc!.min, status: "Pendiente" };
     setAppts((p) => [...p, a]);
     setLast(a); setErr(""); setStep(4);
   }
   function reset() { setStep(1); setSvc(null); setDate(""); setTime(""); setForm({ name: "", phone: "" }); setLast(null); }
   function setStatus(id: string, status: Status) { setAppts((p) => p.map((a) => (a.id === id ? { ...a, status } : a))); }
 
-  const dayLabel = (s: string) => new Date(s + "T00:00").toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" });
+  const dayLabel = (s: string) => formatBogotaDate(s, { weekday: "long", day: "numeric", month: "long" });
   const sorted = [...appts].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const badge = (s: Status) => s === "Confirmada" ? "bg-emerald-100 text-emerald-700" : s === "Cancelada" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
 
@@ -141,14 +139,13 @@ export default function SmartBooking() {
                 <motion.div key="s2" {...slide}>
                   <p className="font-semibold mb-3 text-sm">Elige el día</p>
                   <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                    {DAYS.map((d) => {
-                      const v = iso(d);
+                    {days.map((v) => {
                       const sel = date === v;
                       return (
                         <button key={v} onClick={() => { setDate(v); setTime(""); }} className={`rounded-2xl border py-2.5 text-center transition ${sel ? "bg-sky-600 border-sky-600 text-white shadow-md shadow-sky-600/25" : "border-slate-200 hover:border-sky-400 hover:bg-sky-50"}`}>
-                          <span className={`block text-[10px] uppercase tracking-wide ${sel ? "text-sky-100" : "text-slate-400"}`}>{d.toLocaleDateString("es-CO", { weekday: "short" })}</span>
-                          <span className="block text-xl font-bold leading-tight">{d.getDate()}</span>
-                          <span className={`block text-[10px] ${sel ? "text-sky-100" : "text-slate-400"}`}>{d.toLocaleDateString("es-CO", { month: "short" })}</span>
+                          <span className={`block text-[10px] uppercase tracking-wide ${sel ? "text-sky-100" : "text-slate-400"}`}>{formatBogotaDate(v, { weekday: "short" })}</span>
+                          <span className="block text-xl font-bold leading-tight">{Number(v.slice(8))}</span>
+                          <span className={`block text-[10px] ${sel ? "text-sky-100" : "text-slate-400"}`}>{formatBogotaDate(v, { month: "short" })}</span>
                         </button>
                       );
                     })}
@@ -193,8 +190,17 @@ export default function SmartBooking() {
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }} className="mx-auto h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center"><CheckCircle2 className="text-emerald-500" size={40} /></motion.div>
                   <h2 className="text-2xl font-bold tracking-tight mt-4">¡Cita agendada!</h2>
                   <p className="text-slate-600 mt-2">{last.name}, te esperamos para <b>{last.service}</b></p>
-                  <p className="capitalize text-slate-500 text-sm">{dayLabel(last.date)} a las {last.time}</p>
-                  <div className="mt-7 flex flex-wrap justify-center gap-3">
+                  <p className="capitalize text-slate-500 text-sm">{dayLabel(last.date)} a las {last.time} ({last.min} min)</p>
+                  <p className="text-xs text-slate-400 mt-3 max-w-md mx-auto">Pulsa el botón para abrir WhatsApp con el resumen de tu cita y enviarlo.</p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <a
+                      href={whatsappLink(`Hola, acabo de agendar mi cita en SmartBooking (DEMO):\n\nPaciente: ${last.name}\nCelular: ${last.phone}\nServicio: ${last.service} (${last.min} min)\nFecha: ${dayLabel(last.date)}\nHora: ${last.time}\nEstado: ${last.status}`)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 transition"
+                    >
+                      <MessageCircle size={16} /> Enviar confirmación por WhatsApp
+                    </a>
                     <button onClick={reset} className="rounded-full border border-sky-600 text-sky-700 hover:bg-sky-50 font-semibold px-5 py-2.5 transition">Agendar otra</button>
                     <button onClick={() => setTab("admin")} className="rounded-full bg-sky-600 hover:bg-sky-700 text-white font-semibold px-5 py-2.5 transition">Verla en Vista Administrador</button>
                   </div>
@@ -208,7 +214,7 @@ export default function SmartBooking() {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-7 rounded-3xl border border-slate-200 shadow-[0_8px_30px_rgba(2,132,199,0.07)] p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold flex items-center gap-2"><CalendarCheck size={18} className="text-sky-600" /> Citas agendadas ({appts.length})</h2>
-              <button onClick={() => setAppts(seed())} className="text-xs text-slate-500 underline hover:text-slate-800">Restablecer demo</button>
+              <button onClick={() => setAppts(seed(days))} className="text-xs text-slate-500 underline hover:text-slate-800">Restablecer demo</button>
             </div>
             <ul className="divide-y divide-slate-100">
               <AnimatePresence initial={false}>
@@ -218,7 +224,15 @@ export default function SmartBooking() {
                       <p className="font-semibold">{a.name} <span className={`ml-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge(a.status)}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{a.status}</span></p>
                       <p className="text-sm text-slate-500 capitalize">{a.service} · {dayLabel(a.date)} · {a.time} · {a.phone}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={whatsappLink(`Hola ${a.name}, te recordamos tu cita en Clínica Sonrisa Caribe (DEMO) para ${a.service} el ${dayLabel(a.date)} a las ${a.time}. Por favor confírmanos tu asistencia.`)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-sm px-3 py-1.5 transition"
+                      >
+                        <MessageCircle size={14} /> Recordatorio
+                      </a>
                       <button disabled={a.status === "Confirmada"} onClick={() => setStatus(a.id, "Confirmada")} className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-sm px-3 py-1.5 transition"><CheckCircle2 size={14} /> Confirmar</button>
                       <button disabled={a.status === "Cancelada"} onClick={() => setStatus(a.id, "Cancelada")} className="flex items-center gap-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 text-sm px-3 py-1.5 transition"><XCircle size={14} /> Cancelar</button>
                     </div>
@@ -230,6 +244,11 @@ export default function SmartBooking() {
           </motion.div>
         )}
       </div>
+      <DemoCtaBanner
+        demoName="SmartBooking"
+        headline="¿Quieres un sistema de citas y reservas para tu clínica o negocio?"
+        description="Creo sistemas de agendamiento paso a paso y paneles administrativos para consultorios, centros de estética, barberías y servicios."
+      />
     </div>
   );
 }

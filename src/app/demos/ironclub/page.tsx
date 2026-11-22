@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Dumbbell, Flame, Zap, Crown, Check, X, MessageCircle, Users, Wallet, Clock, AlertTriangle,
@@ -8,9 +8,11 @@ import {
   Fingerprint, ScanFace, QrCode, ShieldCheck, ShieldAlert, UserCheck, Smartphone, Banknote, DoorOpen, DoorClosed, Receipt, UserPlus,
 } from "lucide-react";
 import DemoBar from "@/components/DemoBar";
+import DemoCtaBanner from "@/components/DemoCtaBanner";
 import Photo from "@/components/Photo";
 import Reveal from "@/components/Reveal";
 import { cop, whatsappLink, DEMO_BADGE } from "@/config/site";
+import { addDays, daysDiff, formatBogotaDate, formatBogotaTime, isSameBogotaDay, localIsoDate } from "@/lib/date";
 
 const NEON = "#CCFF00";
 
@@ -61,24 +63,31 @@ type Payment = { id: string; date: string; amount: number; concept: string; meth
 type LogEntry = { id: string; ts: string; name: string; kind: "Huella" | "Face ID" | "Pase Diario"; method?: Method; amount: number; status: "Permitido" | "Denegado" };
 const KEY = "ironclub-demo-v2";
 
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-const daysLeft = (s: string) => Math.round((new Date(s + "T00:00").getTime() - today0().getTime()) / 86400000);
 type Status = "Al día" | "Por vencer" | "Vencido";
-const statusOf = (s: string): Status => { const d = daysLeft(s); return d < 0 ? "Vencido" : d <= 5 ? "Por vencer" : "Al día"; };
-const fmtDate = (s: string) => new Date(s + "T00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-const isToday = (ts: string) => iso(new Date(ts)) === iso(new Date());
-const hhmm = (ts: string) => new Date(ts).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const statusFromDiff = (d: number): Status => (d < 0 ? "Vencido" : d <= 5 ? "Por vencer" : "Al día");
 
-/** Aviso sonoro corto (Web Audio). Falla en silencio si el navegador no lo permite. */
+let sharedAudioCtx: AudioContext | null = null;
+
+/** Aviso sonoro corto (Web Audio) reutilizando un único AudioContext para evitar fugas. */
 function beep(ok: boolean) {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const c = new AC(); const o = c.createOscillator(); const g = c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.type = ok ? "sine" : "sawtooth"; o.frequency.value = ok ? 880 : 160; g.gain.value = 0.05;
-    o.start(); o.stop(c.currentTime + (ok ? 0.18 : 0.5));
+    if (!AC) return;
+    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+      sharedAudioCtx = new AC();
+    }
+    if (sharedAudioCtx.state === "suspended") {
+      void sharedAudioCtx.resume();
+    }
+    const o = sharedAudioCtx.createOscillator();
+    const g = sharedAudioCtx.createGain();
+    o.connect(g);
+    g.connect(sharedAudioCtx.destination);
+    o.type = ok ? "sine" : "sawtooth";
+    o.frequency.value = ok ? 880 : 160;
+    g.gain.value = 0.05;
+    o.start();
+    o.stop(sharedAudioCtx.currentTime + (ok ? 0.18 : 0.5));
   } catch { /* sin audio */ }
 }
 
@@ -101,9 +110,10 @@ function FakeQR({ seed }: { seed: number }) {
   return <svg viewBox={`-1 -1 ${n + 2} ${n + 2}`} className="h-36 w-36 bg-white p-1" shapeRendering="crispEdges" fill="#0A0A0A" role="img" aria-label="Código QR de demostración">{cells}</svg>;
 }
 
-function seed(): { members: Member[]; payments: Payment[]; log: LogEntry[] } {
-  const t = today0();
-  const m = (n: string, ph: string, plan: PlanId, off: number, bio: boolean, id: string): Member => ({ id, name: n, phone: ph, plan, expires: iso(addDays(t, off)), bio });
+function seed(todayStr: string): { seededOn: string; members: Member[]; payments: Payment[]; log: LogEntry[]; booked: Record<string, boolean> } {
+  const m = (n: string, ph: string, plan: PlanId, off: number, bio: boolean, id: string): Member => ({
+    id, name: n, phone: ph, plan, expires: addDays(todayStr, off), bio,
+  });
   const members = [
     m("Carlos Mendoza", "3004561234", "pro", 18, true, "carlos"), m("Andrea Gómez", "3015557788", "basico", 2, true, "andrea"),
     m("Jorge Pérez", "3026669900", "basico", -4, true, "jorge"), m("Camila Rodríguez", "3037771122", "pro", 21, true, "s4"),
@@ -111,31 +121,51 @@ function seed(): { members: Member[]; payments: Payment[]; log: LogEntry[] } {
     m("Luis Mercado", "3061112233", "pro", 1, true, "s7"), m("Andrea Polo", "3072224455", "basico", -11, false, "s8"),
     m("Kevin Salcedo", "3083336677", "vip", 40, true, "s9"), m("Jhon Barrios", "3094448899", "basico", 3, true, "s10"),
   ];
-  const first = new Date(t.getFullYear(), t.getMonth(), 1);
-  const pm = (id: string, amount: number, concept: string, method: Method, date = iso(first)): Payment => ({ id, date, amount, concept, method });
-  const todayIso = iso(new Date());
+  const first = `${todayStr.slice(0, 7)}-01`;
+  const pm = (id: string, amount: number, concept: string, method: Method, date = first): Payment => ({ id, date, amount, concept, method });
   const payments: Payment[] = [
     pm("p1", 110000, "Camila Rodríguez · Pro", "Nequi"), pm("p2", 270000, "Valentina Ortiz · VIP", "Bancolombia / QR"),
     pm("p3", 110000, "Carlos Mendoza · Pro", "Efectivo"), pm("p4", 270000, "Kevin Salcedo · VIP", "Nequi"),
     pm("p5", 75000, "Jhon Barrios · Básico", "Efectivo"), pm("p6", 110000, "Luis Mercado · Pro", "Daviplata"),
-    pm("pd1", 8000, "Visitante #1 · Pase diario", "Efectivo", todayIso), pm("pd2", 12000, "Visitante #2 · Pase diario", "Nequi", todayIso),
+    pm("pd1", 8000, "Visitante #1 · Pase diario", "Efectivo", todayStr), pm("pd2", 12000, "Visitante #2 · Pase diario", "Nequi", todayStr),
   ];
-  const at = (h: number, mi: number) => new Date(t.getFullYear(), t.getMonth(), t.getDate(), h, mi, 12).toISOString();
+  const at = (h: string, mi: string) => `${todayStr}T${h}:${mi}:12-05:00`;
   const log: LogEntry[] = [
-    { id: "l1", ts: at(5, 48), name: "Carlos Mendoza", kind: "Huella", amount: 0, status: "Permitido" },
-    { id: "l2", ts: at(6, 2), name: "Camila Rodríguez", kind: "Face ID", amount: 0, status: "Permitido" },
-    { id: "l3", ts: at(6, 30), name: "Visitante #1", kind: "Pase Diario", method: "Efectivo", amount: 8000, status: "Permitido" },
-    { id: "l4", ts: at(7, 10), name: "Visitante #2", kind: "Pase Diario", method: "Nequi", amount: 12000, status: "Permitido" },
-    { id: "l5", ts: at(7, 25), name: "Jhon Barrios", kind: "Huella", amount: 0, status: "Permitido" },
-    { id: "l6", ts: at(7, 41), name: "Luis Mercado", kind: "Face ID", amount: 0, status: "Permitido" },
+    { id: "l1", ts: at("05", "48"), name: "Carlos Mendoza", kind: "Huella", amount: 0, status: "Permitido" },
+    { id: "l2", ts: at("06", "02"), name: "Camila Rodríguez", kind: "Face ID", amount: 0, status: "Permitido" },
+    { id: "l3", ts: at("06", "30"), name: "Visitante #1", kind: "Pase Diario", method: "Efectivo", amount: 8000, status: "Permitido" },
+    { id: "l4", ts: at("07", "10"), name: "Visitante #2", kind: "Pase Diario", method: "Nequi", amount: 12000, status: "Permitido" },
+    { id: "l5", ts: at("07", "25"), name: "Jhon Barrios", kind: "Huella", amount: 0, status: "Permitido" },
+    { id: "l6", ts: at("07", "41"), name: "Luis Mercado", kind: "Face ID", amount: 0, status: "Permitido" },
   ];
-  return { members, payments, log };
+  return { seededOn: todayStr, members, payments, log, booked: {} };
 }
 
 export default function IronClub() {
   const [tab, setTab] = useState<"clientes" | "recepcion" | "admin">("clientes");
+  const [todayStr, setTodayStr] = useState("");
   const [toast, setToast] = useState("");
-  const notify = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (gateTimer.current) clearTimeout(gateTimer.current);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      if (scanTimer.current) clearTimeout(scanTimer.current);
+      if (captureTimer.current) clearTimeout(captureTimer.current);
+    };
+  }, []);
+
+  const notify = (m: string) => {
+    setToast(m);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2200);
+  };
 
   /* Lead modal (cortesía / inscripción) */
   const [lead, setLead] = useState<{ title: string; text: (n: string, p: string) => string } | null>(null);
@@ -167,15 +197,17 @@ export default function IronClub() {
     setCalcRes({ imc, cat, plan, why });
   }
 
-  /* Horario */
+  /* Horario (persistido en localStorage junto con el resto de la demo) */
   const [day, setDay] = useState("Lunes");
-  const [spots, setSpots] = useState<Record<string, number>>(() => Object.fromEntries(CLASSES.map((c) => [c.id, c.spots])));
   const [booked, setBooked] = useState<Record<string, boolean>>({});
+  const spotsLeft = (c: Cls) => Math.max(0, c.spots - (booked[c.id] ? 1 : 0));
   function toggleBook(c: Cls) {
     if (booked[c.id]) {
-      setBooked((b) => ({ ...b, [c.id]: false })); setSpots((s) => ({ ...s, [c.id]: s[c.id] + 1 })); notify(`Cupo cancelado: ${c.name}`);
-    } else if (spots[c.id] > 0) {
-      setBooked((b) => ({ ...b, [c.id]: true })); setSpots((s) => ({ ...s, [c.id]: s[c.id] - 1 })); notify(`Cupo reservado: ${c.name} · ${c.day} ${c.time}`);
+      setBooked((b) => ({ ...b, [c.id]: false }));
+      notify(`Cupo cancelado: ${c.name}`);
+    } else if (spotsLeft(c) > 0) {
+      setBooked((b) => ({ ...b, [c.id]: true }));
+      notify(`Cupo reservado: ${c.name} · ${c.day} ${c.time}`);
     }
   }
 
@@ -198,17 +230,67 @@ export default function IronClub() {
   const [nmErr, setNmErr] = useState("");
   const [filter, setFilter] = useState<"Todos" | Status>("Todos");
 
+  const daysLeft = (expires: string) => (todayStr ? daysDiff(expires, todayStr) : 0);
+  const statusOf = (expires: string): Status => statusFromDiff(daysLeft(expires));
+
   useEffect(() => {
+    const today = localIsoDate();
+    setTodayStr(today);
+    const fresh = seed(today);
     try {
       const raw = localStorage.getItem(KEY);
-      const d = raw ? JSON.parse(raw) : seed();
-      setMembers(d.members); setPayments(d.payments); setLog(d.log ?? []);
-    } catch { const d = seed(); setMembers(d.members); setPayments(d.payments); setLog(d.log); }
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (Array.isArray(d?.members) && Array.isArray(d?.payments)) {
+          let loadedMembers: Member[] = d.members;
+          let loadedPayments: Payment[] = d.payments;
+          let loadedLog: LogEntry[] = Array.isArray(d.log) ? d.log : fresh.log;
+          const loadedBooked: Record<string, boolean> = d.booked && typeof d.booked === "object" ? d.booked : {};
+
+          // Si el usuario vuelve otro día, desplazamos los vencimientos relativos y aseguramos
+          // bitácora y caja activas para hoy sin perder socios nuevos ni historial del mes.
+          if (typeof d.seededOn === "string" && d.seededOn !== today) {
+            const delta = daysDiff(today, d.seededOn);
+            if (delta !== 0) {
+              loadedMembers = loadedMembers.map((m) => ({ ...m, expires: addDays(m.expires, delta) }));
+            }
+            const hasTodayLog = loadedLog.some((e) => isSameBogotaDay(e.ts, today));
+            if (!hasTodayLog) {
+              loadedLog = [...fresh.log, ...loadedLog];
+            }
+            const hasTodayPay = loadedPayments.some((p) => p.date === today);
+            if (!hasTodayPay) {
+              const todaySeedPays = fresh.payments.filter((p) => p.date === today);
+              loadedPayments = [...loadedPayments, ...todaySeedPays];
+            }
+          }
+
+          setMembers(loadedMembers);
+          setPayments(loadedPayments);
+          setLog(loadedLog);
+          setBooked(loadedBooked);
+          setReady(true);
+          return;
+        }
+      }
+    } catch { /* fallback a datos semilla */ }
+    setMembers(fresh.members);
+    setPayments(fresh.payments);
+    setLog(fresh.log);
+    setBooked(fresh.booked);
     setReady(true);
   }, []);
-  useEffect(() => { if (ready) localStorage.setItem(KEY, JSON.stringify({ members, payments, log })); }, [members, payments, log, ready]);
 
-  const todayLog = useMemo(() => [...log].filter((e) => isToday(e.ts)).sort((a, b) => b.ts.localeCompare(a.ts)), [log]);
+  useEffect(() => {
+    if (ready && todayStr) {
+      localStorage.setItem(KEY, JSON.stringify({ seededOn: todayStr, members, payments, log, booked }));
+    }
+  }, [ready, todayStr, members, payments, log, booked]);
+
+  const todayLog = useMemo(
+    () => (todayStr ? [...log].filter((e) => isSameBogotaDay(e.ts, todayStr)).sort((a, b) => b.ts.localeCompare(a.ts)) : []),
+    [log, todayStr],
+  );
   const unreg = members.filter((m) => !m.bio);
   const enrollId = enroll.id || unreg[0]?.id || "";
 
@@ -224,33 +306,41 @@ export default function IronClub() {
   }, [enroll]);
 
   const kpi = useMemo(() => {
-    const now = new Date();
-    const month = payments.filter((p) => { const d = new Date(p.date + "T00:00"); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+    if (!todayStr) return { activos: 0, ingresos: 0, porVencer: 0, vencidas: 0 };
+    const monthPrefix = todayStr.slice(0, 7);
+    const month = payments.filter((p) => p.date.startsWith(monthPrefix));
     return {
-      activos: members.filter((m) => statusOf(m.expires) !== "Vencido").length,
+      activos: members.filter((m) => statusFromDiff(daysDiff(m.expires, todayStr)) !== "Vencido").length,
       ingresos: month.reduce((s, p) => s + p.amount, 0),
-      porVencer: members.filter((m) => statusOf(m.expires) === "Por vencer").length,
-      vencidas: members.filter((m) => statusOf(m.expires) === "Vencido").length,
+      porVencer: members.filter((m) => statusFromDiff(daysDiff(m.expires, todayStr)) === "Por vencer").length,
+      vencidas: members.filter((m) => statusFromDiff(daysDiff(m.expires, todayStr)) === "Vencido").length,
     };
-  }, [members, payments]);
+  }, [members, payments, todayStr]);
 
-  const openGate = () => { setGateOpen(true); setTimeout(() => setGateOpen(false), 2600); };
+  const openGate = () => {
+    setGateOpen(true);
+    if (gateTimer.current) clearTimeout(gateTimer.current);
+    gateTimer.current = setTimeout(() => setGateOpen(false), 2600);
+  };
   const pushLog = (e: Omit<LogEntry, "id" | "ts">) => setLog((l) => [{ ...e, id: "l" + Date.now() + Math.random(), ts: new Date().toISOString() }, ...l]);
 
   function addMember() {
     if (nm.name.trim().length < 3) return setNmErr("Escribe el nombre completo.");
-    if (!/^3\d{9}$/.test(nm.phone.replace(/\s/g, ""))) return setNmErr("Celular de 10 dígitos que empiece por 3.");
+    const cleanPhone = nm.phone.replace(/\s/g, "");
+    if (!/^3\d{9}$/.test(cleanPhone)) return setNmErr("Celular de 10 dígitos que empiece por 3.");
+    const today = todayStr || localIsoDate();
     const p = planOf(nm.plan);
     const id = String(Date.now());
-    setMembers((m) => [{ id, name: nm.name.trim(), phone: nm.phone.replace(/\s/g, ""), plan: nm.plan, expires: iso(addDays(today0(), p.days)), bio: false }, ...m]);
-    setPayments((x) => [...x, { id: "p" + id, date: iso(new Date()), amount: p.price, concept: `${nm.name.trim()} · ${p.name}`, method: nm.pay }]);
+    setMembers((m) => [{ id, name: nm.name.trim(), phone: cleanPhone, plan: nm.plan, expires: addDays(today, p.days), bio: false }, ...m]);
+    setPayments((x) => [...x, { id: "p" + id, date: today, amount: p.price, concept: `${nm.name.trim()} · ${p.name}`, method: nm.pay }]);
     setNm({ name: "", phone: "", plan: "basico", pay: "Efectivo" }); setNmErr(""); notify(`${nm.name.trim()} registrado · +${cop(p.price)} · registra su biometría en Recepción`);
   }
   function renew(m: Member, method: Method = "Efectivo") {
-    const base = daysLeft(m.expires) < 0 ? today0() : new Date(m.expires + "T00:00");
+    const today = todayStr || localIsoDate();
+    const base = daysDiff(m.expires, today) < 0 ? today : m.expires;
     const p = planOf(m.plan);
-    setMembers((all) => all.map((x) => (x.id === m.id ? { ...x, expires: iso(addDays(base, 30)) } : x)));
-    setPayments((x) => [...x, { id: "p" + Date.now(), date: iso(new Date()), amount: p.monthly, concept: `${m.name} · Renovación 30 días`, method }]);
+    setMembers((all) => all.map((x) => (x.id === m.id ? { ...x, expires: addDays(base, 30) } : x)));
+    setPayments((x) => [...x, { id: "p" + Date.now(), date: today, amount: p.monthly, concept: `${m.name} · Renovación 30 días`, method }]);
     notify(`${m.name} renovado 30 días · +${cop(p.monthly)} (${method})`);
     return p.monthly;
   }
@@ -258,13 +348,15 @@ export default function IronClub() {
   function registerPass() {
     if (pass.method !== "Efectivo" && !pass.verified) return setPassErr('Marca "Transferencia verificada" antes de abrir el torniquete.');
     setPassErr("");
+    const today = todayStr || localIsoDate();
     const t = PASS_TYPES[pass.type];
     const n = todayLog.filter((e) => e.kind === "Pase Diario").length + 1;
     const name = pass.name.trim() || `Visitante #${n}`;
-    setPayments((x) => [...x, { id: "p" + Date.now(), date: iso(new Date()), amount: t.price, concept: `${name} · Pase diario`, method: pass.method }]);
+    setPayments((x) => [...x, { id: "p" + Date.now(), date: today, amount: t.price, concept: `${name} · Pase diario`, method: pass.method }]);
     pushLog({ name, kind: "Pase Diario", method: pass.method, amount: t.price, status: "Permitido" });
     setFlash({ title: "ACCESO PERMITIDO — PASE DIARIO", sub: `${name} · ${t.label} · ${cop(t.price)}` });
-    setTimeout(() => setFlash(null), 2600);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), 2600);
     openGate(); beep(true);
     setPass({ ...pass, name: "", verified: false });
   }
@@ -273,7 +365,8 @@ export default function IronClub() {
     if (scan.phase === "scanning") return;
     setScan({ phase: "scanning", member: m });
     const via = mode === "huella" ? "Huella" : "Face ID";
-    setTimeout(() => {
+    if (scanTimer.current) clearTimeout(scanTimer.current);
+    scanTimer.current = setTimeout(() => {
       const st = statusOf(m.expires), d = daysLeft(m.expires), first = m.name.split(" ")[0];
       if (st === "Vencido") {
         setScan({ phase: "done", member: m, kind: "denied", msg: "ACCESO DENEGADO — Mensualidad Vencida", sub: `${m.name} · venció hace ${-d} ${-d === 1 ? "día" : "días"}` });
@@ -290,13 +383,27 @@ export default function IronClub() {
   }
   function receptionRenew(m: Member) {
     const via = mode === "huella" ? "Huella" : "Face ID";
+    const alreadyEntered = scan.kind === "warn";
     const amount = renew(m, cobro);
-    pushLog({ name: m.name, kind: via, method: cobro, amount, status: "Permitido" });
+    if (alreadyEntered) {
+      // El socio "Por vencer" ya registró su entrada física en runScan; actualizamos ese registro sin duplicar asistencia.
+      setLog((prev) => {
+        const idx = prev.findIndex((e) => e.name === m.name && e.status === "Permitido" && isSameBogotaDay(e.ts, todayStr || localIsoDate()));
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx], method: cobro, amount };
+        return next;
+      });
+    } else {
+      pushLog({ name: m.name, kind: via, method: cobro, amount, status: "Permitido" });
+      openGate();
+    }
     setScan({ phase: "done", member: m, kind: "ok", msg: `RENOVACIÓN COBRADA — Bienvenido ${m.name.split(" ")[0]} (30 días más)`, sub: `${cop(amount)} · ${cobro}` });
-    openGate(); beep(true);
+    beep(true);
   }
   function receptionDayPass(m: Member) {
-    setPayments((x) => [...x, { id: "p" + Date.now(), date: iso(new Date()), amount: DAILY_PRICE, concept: `${m.name} · Pase diario`, method: cobro }]);
+    const today = todayStr || localIsoDate();
+    setPayments((x) => [...x, { id: "p" + Date.now(), date: today, amount: DAILY_PRICE, concept: `${m.name} · Pase diario`, method: cobro }]);
     pushLog({ name: m.name, kind: "Pase Diario", method: cobro, amount: DAILY_PRICE, status: "Permitido" });
     setScan({ phase: "done", member: m, kind: "ok", msg: "ACCESO PERMITIDO — PASE DIARIO", sub: `${m.name} · ${cop(DAILY_PRICE)} · ${cobro}` });
     notify(`Pase diario cobrado a ${m.name} · +${cop(DAILY_PRICE)}`); openGate(); beep(true);
@@ -304,16 +411,36 @@ export default function IronClub() {
   function capture(which: "finger" | "face") {
     if (!enrollId) return;
     setEnroll((e) => ({ ...e, id: enrollId, [which]: "capturing" }));
-    setTimeout(() => setEnroll((e) => ({ ...e, [which]: "done" })), 1500);
+    if (captureTimer.current) clearTimeout(captureTimer.current);
+    captureTimer.current = setTimeout(() => setEnroll((e) => ({ ...e, [which]: "done" })), 1500);
   }
 
   function remind(m: Member) {
     const d = daysLeft(m.expires);
-    const when = d < 0 ? `venció el ${fmtDate(m.expires)}` : d === 0 ? "vence hoy" : `vence pronto (${fmtDate(m.expires)})`;
+    const f = formatBogotaDate(m.expires);
+    const when = d < 0 ? `venció el ${f}` : d === 0 ? "vence hoy" : `vence pronto (${f})`;
     const msg = `Hola ${m.name.split(" ")[0]}, te recordamos que tu mensualidad en IronClub ${when}. Puedes renovar por Nequi, transferencia o en recepción. ¡Te esperamos para seguir entrenando! (Mensaje de demostración)`;
     window.open(whatsappLink(msg), "_blank", "noopener");
   }
-  function resetDemo() { const d = seed(); setMembers(d.members); setPayments(d.payments); setLog(d.log); setScan({ phase: "idle" }); notify("Datos de demostración restablecidos"); }
+  function resetDemo() {
+    const today = localIsoDate();
+    setTodayStr(today);
+    const d = seed(today);
+    setMembers(d.members); setPayments(d.payments); setLog(d.log); setBooked({}); setScan({ phase: "idle" });
+    notify("Datos de demostración restablecidos");
+  }
+
+  useEffect(() => {
+    if (!lead) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLead(null); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [lead]);
 
   const shown = [...members].sort((a, b) => a.expires.localeCompare(b.expires)).filter((m) => filter === "Todos" || statusOf(m.expires) === filter);
   const sBadge = (s: Status) => s === "Al día" ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30" : s === "Por vencer" ? "bg-yellow-400/10 text-yellow-300 ring-yellow-400/30" : "bg-red-500/10 text-red-400 ring-red-500/30";
@@ -330,13 +457,24 @@ export default function IronClub() {
 
       {/* Pestañas */}
       <div className="sticky top-0 z-30 pt-[68px] bg-[#0A0A0A]/90 backdrop-blur-lg border-b border-white/10">
-        <div className="mx-auto max-w-6xl px-5 flex flex-wrap items-center justify-between gap-3 pb-3">
+        <div className="mx-auto max-w-6xl px-4 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-3">
           <div className="flex items-center gap-2 font-display font-extrabold italic uppercase tracking-tight text-lg"><Dumbbell size={22} style={{ color: NEON }} /> Iron<span style={{ color: NEON }}>Club</span></div>
-          <div className="inline-flex bg-[#141416] p-1 border border-white/10 max-w-full overflow-x-auto">
-            {([["clientes", "Vista Clientes"], ["recepcion", "Recepción y Acceso"], ["admin", "Administración"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} className={`relative whitespace-nowrap px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold uppercase tracking-wide transition ${tab === k ? "text-black" : "text-zinc-400 hover:text-white"}`}>
+          <div role="tablist" aria-label="Secciones de IronClub" className="grid grid-cols-3 sm:inline-flex w-full sm:w-auto bg-[#141416] p-1 border border-white/10">
+            {([
+              ["clientes", "Clientes", "Vista Clientes"],
+              ["recepcion", "Recepción", "Recepción y Acceso"],
+              ["admin", "Admin", "Administración"],
+            ] as const).map(([k, shortLabel, fullLabel]) => (
+              <button
+                key={k}
+                role="tab"
+                aria-selected={tab === k}
+                onClick={() => setTab(k)}
+                className={`relative text-center px-2 sm:px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold uppercase tracking-wide transition ${tab === k ? "text-black" : "text-zinc-400 hover:text-white"}`}
+              >
                 {tab === k && <motion.span layoutId="icpill" className="absolute inset-0" style={{ background: NEON }} transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
-                <span className="relative">{l}</span>
+                <span className="relative sm:hidden">{shortLabel}</span>
+                <span className="relative hidden sm:inline">{fullLabel}</span>
               </button>
             ))}
           </div>
@@ -457,7 +595,7 @@ export default function IronClub() {
               <div className="mt-8 grid md:grid-cols-3 gap-4">
                 <AnimatePresence mode="popLayout">
                   {classesToday.map((c) => {
-                    const left = spots[c.id], mine = booked[c.id], full = left === 0 && !mine;
+                    const left = spotsLeft(c), mine = booked[c.id], full = left === 0 && !mine;
                     return (
                       <motion.div layout key={c.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.28 }} className={`${card} overflow-hidden flex flex-col`}>
                         <Photo id={c.img} alt={`Clase de ${c.name}`} w={600} className="h-32 bg-zinc-900" sizes="(max-width: 768px) 100vw, 33vw" />
@@ -672,7 +810,7 @@ export default function IronClub() {
 
             {/* Caja y bitácora */}
             {(() => {
-              const todayPay = payments.filter((p) => p.date === iso(new Date()));
+              const todayPay = todayStr ? payments.filter((p) => p.date === todayStr) : [];
               const transf = todayPay.filter((p) => p.method !== "Efectivo").reduce((s, p) => s + p.amount, 0);
               const efectivo = todayPay.filter((p) => p.method === "Efectivo").reduce((s, p) => s + p.amount, 0);
               const ok = todayLog.filter((e) => e.status === "Permitido");
@@ -710,7 +848,7 @@ export default function IronClub() {
                           <AnimatePresence initial={false}>
                             {todayLog.map((e) => (
                               <motion.tr layout key={e.id} initial={{ opacity: 0, backgroundColor: "rgba(204,255,0,0.18)" }} animate={{ opacity: 1, backgroundColor: "rgba(204,255,0,0)" }} transition={{ duration: 1.2 }} className="border-b border-white/[0.05] last:border-0">
-                                <td className="p-4 tabular-nums text-zinc-300 whitespace-nowrap">{hhmm(e.ts)}</td>
+                                <td className="p-4 tabular-nums text-zinc-300 whitespace-nowrap">{formatBogotaTime(e.ts)}</td>
                                 <td className="font-semibold">{e.name}</td>
                                 <td className="text-zinc-300"><span className="inline-flex items-center gap-1.5">{e.kind === "Huella" ? <Fingerprint size={14} style={{ color: NEON }} /> : e.kind === "Face ID" ? <ScanFace size={14} style={{ color: NEON }} /> : <Timer size={14} style={{ color: NEON }} />}{e.kind === "Pase Diario" ? `Pase Diario - ${e.method}` : e.method ? `${e.kind} + renovación (${e.method})` : e.kind}</span></td>
                                 <td className="text-right tabular-nums">{e.amount ? cop(e.amount) : <span className="text-zinc-600">—</span>}</td>
@@ -781,7 +919,7 @@ export default function IronClub() {
                           <motion.tr layout key={m.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02]">
                             <td className="p-4"><p className="font-semibold">{m.name}</p><p className="text-xs text-zinc-500 flex items-center gap-1.5">{m.phone} {m.bio ? <><Fingerprint size={13} style={{ color: NEON }} /><ScanFace size={13} style={{ color: NEON }} /></> : <span className="text-yellow-300/80">· sin biometría</span>}</p></td>
                             <td className="text-zinc-300">{planOf(m.plan).name}</td>
-                            <td className="text-zinc-300 whitespace-nowrap">{fmtDate(m.expires)}<p className="text-xs text-zinc-500">{d < 0 ? `hace ${-d} d` : d === 0 ? "hoy" : `en ${d} d`}</p></td>
+                            <td className="text-zinc-300 whitespace-nowrap">{formatBogotaDate(m.expires)}<p className="text-xs text-zinc-500">{d < 0 ? `hace ${-d} d` : d === 0 ? "hoy" : `en ${d} d`}</p></td>
                             <td><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold ring-1 ${sBadge(s)}`}><span className={`h-1.5 w-1.5 rounded-full ${dot(s)}`} />{s}</span></td>
                             <td className="p-4"><div className="flex justify-end gap-2 flex-wrap">
                               {s !== "Al día" && <button onClick={() => remind(m)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10 transition"><Bell size={13} /> Enviar recordatorio</button>}
@@ -803,17 +941,25 @@ export default function IronClub() {
       {/* Modal lead */}
       <AnimatePresence>
         {lead && (
-          <motion.div className="fixed inset-0 z-[120] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ironclub-lead-title"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setLead(null)} />
             <motion.div initial={{ scale: 0.94, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94, y: 16 }} className="relative w-full max-w-md bg-[#141416] border border-white/10 p-6">
-              <button aria-label="Cerrar" onClick={() => setLead(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white"><X /></button>
-              <h3 className="font-display font-extrabold uppercase italic text-2xl pr-8">{lead.title}</h3>
+              <button type="button" aria-label="Cerrar" onClick={() => setLead(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white"><X /></button>
+              <h3 id="ironclub-lead-title" className="font-display font-extrabold uppercase italic text-2xl pr-8">{lead.title}</h3>
               <p className="text-sm text-zinc-400 mt-1">Déjanos tus datos y abrimos WhatsApp con tu solicitud lista.</p>
               <div className="mt-5 space-y-3">
-                <input placeholder="Tu nombre" value={leadForm.name} onChange={(e) => setLeadForm({ ...leadForm, name: e.target.value })} className={input} />
-                <input placeholder="Tu celular (3001234567)" inputMode="numeric" value={leadForm.phone} onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })} className={input} />
+                <input aria-label="Tu nombre" placeholder="Tu nombre" value={leadForm.name} onChange={(e) => setLeadForm({ ...leadForm, name: e.target.value })} className={input} />
+                <input aria-label="Tu celular" placeholder="Tu celular (3001234567)" inputMode="numeric" value={leadForm.phone} onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })} className={input} />
                 {leadErr && <p className="text-red-400 text-sm">{leadErr}</p>}
-                <button onClick={submitLead} className="w-full py-3.5 text-black font-extrabold uppercase tracking-wide hover:brightness-110 active:scale-[0.98] transition flex items-center justify-center gap-2" style={{ background: NEON }}><MessageCircle size={18} /> Enviar por WhatsApp</button>
+                <button type="button" onClick={submitLead} className="w-full py-3.5 text-black font-extrabold uppercase tracking-wide hover:brightness-110 active:scale-[0.98] transition flex items-center justify-center gap-2" style={{ background: NEON }}><MessageCircle size={18} /> Enviar por WhatsApp</button>
               </div>
             </motion.div>
           </motion.div>
@@ -828,6 +974,12 @@ export default function IronClub() {
         )}
       </AnimatePresence>
 
+      <DemoCtaBanner
+        demoName="IronClub Gym"
+        theme="dark"
+        headline="¿Diriges un gimnasio o centro de entrenamiento y quieres controlar socios?"
+        description="Implemento plataformas para gimnasios con captación de clientes, control de mensualidades, pases diarios y registro de entradas."
+      />
       <footer className="border-t border-white/10 py-8 text-center text-xs uppercase tracking-widest text-zinc-600">IronClub Gym · {DEMO_BADGE}</footer>
     </div>
   );

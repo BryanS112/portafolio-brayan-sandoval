@@ -1,18 +1,31 @@
 /**
- * Configuración central del sitio.
- * Edita aquí el número de WhatsApp, correo y ubicación: toda la app los lee de este archivo.
+ * Configuración central del sitio y datos oficiales de contacto.
+ * Toda la aplicación (landing y demos) lee el número de WhatsApp y correo desde aquí.
  */
 export const siteConfig = {
   brandName: "Brayan Sandoval",
-  whatsappDemoNumber: "573000000000", // Formato internacional sin "+" ni espacios
-  contactEmail: "contacto@ejemplo.com",
+  whatsappNumber: "573008796422",
+  whatsappDisplay: "+57 300 879 6422",
+  contactEmail: "brayansandovalquiroz69@gmail.com",
   location: "Atlántico, Colombia",
 } as const;
 
 export const DEMO_BADGE = "Proyecto demostrativo — Datos y negocio ficticios";
 
 export function whatsappLink(message: string): string {
-  return `https://wa.me/${siteConfig.whatsappDemoNumber}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(message)}`;
+}
+
+export function mailtoLink(subject: string, body: string): string {
+  return `mailto:${siteConfig.contactEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export function demoQuoteMessage(solutionName: string): string {
+  return `Hola Brayan, acabo de revisar la demostración de ${solutionName} y quiero solicitar información para implementar una solución similar en mi negocio.`;
+}
+
+export function demoQuoteLink(solutionName: string): string {
+  return whatsappLink(demoQuoteMessage(solutionName));
 }
 
 export const cop = (n: number) =>

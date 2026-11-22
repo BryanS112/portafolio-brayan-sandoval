@@ -1,11 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { DollarSign, Percent, Package, AlertTriangle, Search, LayoutDashboard, Hammer } from "lucide-react";
+import { DollarSign, Percent, Package, AlertTriangle, Search, LayoutDashboard, Hammer, Plus, MessageCircle } from "lucide-react";
 import DemoBar from "@/components/DemoBar";
-import { cop, DEMO_BADGE } from "@/config/site";
+import DemoCtaBanner from "@/components/DemoCtaBanner";
+import { cop, DEMO_BADGE, whatsappLink } from "@/config/site";
+import { addDays, formatBogotaDate, localIsoDate } from "@/lib/date";
 
 const PERIODS = [
   { id: "7", label: "Últimos 7 días", days: 7 },
@@ -14,23 +16,23 @@ const PERIODS = [
 ] as const;
 const CATS = ["Todas", "Herramientas", "Construcción", "Pinturas", "Eléctrico", "Plomería"];
 
-type P = { sku: string; name: string; cat: string; price: number; cost: number; stock: number; min: number; base: number };
+type P = { sku: string; name: string; cat: string; price: number; cost: number; baseStock: number; min: number; base: number };
 const PRODUCTS: P[] = [
-  { sku: "HR-001", name: "Taladro percutor 650W", cat: "Herramientas", price: 235000, cost: 160000, stock: 14, min: 5, base: 1 },
-  { sku: "HR-002", name: "Martillo carpintero", cat: "Herramientas", price: 28000, cost: 17000, stock: 3, min: 10, base: 3 },
-  { sku: "HR-003", name: "Juego destornilladores x6", cat: "Herramientas", price: 42000, cost: 26000, stock: 22, min: 8, base: 2 },
-  { sku: "CO-001", name: "Cemento gris 50 kg", cat: "Construcción", price: 31000, cost: 26500, stock: 120, min: 60, base: 9 },
-  { sku: "CO-002", name: "Varilla corrugada 3/8", cat: "Construcción", price: 24500, cost: 20000, stock: 18, min: 40, base: 6 },
-  { sku: "CO-003", name: "Arena de río (m³)", cat: "Construcción", price: 95000, cost: 70000, stock: 9, min: 4, base: 1 },
-  { sku: "PI-001", name: "Pintura vinilo blanco galón", cat: "Pinturas", price: 78000, cost: 52000, stock: 35, min: 12, base: 3 },
-  { sku: "PI-002", name: "Esmalte sintético rojo", cat: "Pinturas", price: 64000, cost: 43000, stock: 4, min: 8, base: 2 },
-  { sku: "PI-003", name: "Rodillo felpa 9\"", cat: "Pinturas", price: 15000, cost: 8000, stock: 40, min: 15, base: 3 },
-  { sku: "EL-001", name: "Cable THHN #12 (rollo)", cat: "Eléctrico", price: 185000, cost: 140000, stock: 7, min: 6, base: 1 },
-  { sku: "EL-002", name: "Breaker 20A", cat: "Eléctrico", price: 18000, cost: 10500, stock: 2, min: 12, base: 4 },
-  { sku: "EL-003", name: "Bombillo LED 12W", cat: "Eléctrico", price: 7500, cost: 4000, stock: 150, min: 50, base: 10 },
-  { sku: "PL-001", name: "Tubo PVC 1/2\" x 6 m", cat: "Plomería", price: 19000, cost: 13000, stock: 55, min: 20, base: 5 },
-  { sku: "PL-002", name: "Llave de lavamanos", cat: "Plomería", price: 52000, cost: 33000, stock: 11, min: 6, base: 2 },
-  { sku: "PL-003", name: "Tanque 500 L", cat: "Plomería", price: 340000, cost: 255000, stock: 1, min: 3, base: 1 },
+  { sku: "HR-001", name: "Taladro percutor 650W", cat: "Herramientas", price: 235000, cost: 160000, baseStock: 45, min: 5, base: 1 },
+  { sku: "HR-002", name: "Martillo carpintero", cat: "Herramientas", price: 28000, cost: 17000, baseStock: 92, min: 10, base: 3 },
+  { sku: "HR-003", name: "Juego destornilladores x6", cat: "Herramientas", price: 42000, cost: 26000, baseStock: 82, min: 8, base: 2 },
+  { sku: "CO-001", name: "Cemento gris 50 kg", cat: "Construcción", price: 31000, cost: 26500, baseStock: 390, min: 60, base: 9 },
+  { sku: "CO-002", name: "Varilla corrugada 3/8", cat: "Construcción", price: 24500, cost: 20000, baseStock: 198, min: 40, base: 6 },
+  { sku: "CO-003", name: "Arena de río (m³)", cat: "Construcción", price: 95000, cost: 70000, baseStock: 39, min: 4, base: 1 },
+  { sku: "PI-001", name: "Pintura vinilo blanco galón", cat: "Pinturas", price: 78000, cost: 52000, baseStock: 125, min: 12, base: 3 },
+  { sku: "PI-002", name: "Esmalte sintético rojo", cat: "Pinturas", price: 64000, cost: 43000, baseStock: 64, min: 8, base: 2 },
+  { sku: "PI-003", name: "Rodillo felpa 9\"", cat: "Pinturas", price: 15000, cost: 8000, baseStock: 130, min: 15, base: 3 },
+  { sku: "EL-001", name: "Cable THHN #12 (rollo)", cat: "Eléctrico", price: 185000, cost: 140000, baseStock: 37, min: 6, base: 1 },
+  { sku: "EL-002", name: "Breaker 20A", cat: "Eléctrico", price: 18000, cost: 10500, baseStock: 122, min: 12, base: 4 },
+  { sku: "EL-003", name: "Bombillo LED 12W", cat: "Eléctrico", price: 7500, cost: 4000, baseStock: 450, min: 50, base: 10 },
+  { sku: "PL-001", name: "Tubo PVC 1/2\" x 6 m", cat: "Plomería", price: 19000, cost: 13000, baseStock: 205, min: 20, base: 5 },
+  { sku: "PL-002", name: "Llave de lavamanos", cat: "Plomería", price: 52000, cost: 33000, baseStock: 71, min: 6, base: 2 },
+  { sku: "PL-003", name: "Tanque 500 L", cat: "Plomería", price: 340000, cost: 255000, baseStock: 31, min: 3, base: 1 },
 ];
 
 // Ventas diarias determinísticas (ficticias): unidades por producto y día
@@ -46,6 +48,13 @@ export default function FerreControl() {
   const [cat, setCat] = useState("Todas");
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
+  const [anchorDate, setAnchorDate] = useState("");
+  const [restock, setRestock] = useState<Record<string, number>>({});
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    setAnchorDate(localIsoDate());
+  }, []);
 
   const days = PERIODS.find((p) => p.id === period)!.days;
   const filtered = useMemo(() => PRODUCTS.map((p, i) => ({ p, i })).filter(({ p }) => cat === "Todas" || p.cat === cat), [cat]);
@@ -63,10 +72,11 @@ export default function FerreControl() {
         per[p.sku] = (per[p.sku] || 0) + u;
       }
       sales += daySales;
-      const date = new Date(); date.setDate(date.getDate() - d);
-      series.push({ dia: date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }), ventas: daySales });
+      const label = anchorDate
+        ? formatBogotaDate(addDays(anchorDate, -d), { day: "2-digit", month: "short" })
+        : `Día ${days - d}`;
+      series.push({ dia: label, ventas: daySales });
     }
-    // Agrupar en semanas si el periodo es largo, para legibilidad
     const group = days > 30 ? 3 : 1;
     const grouped = group === 1 ? series : Array.from({ length: Math.ceil(series.length / group) }, (_, k) => {
       const chunk = series.slice(k * group, k * group + group);
@@ -77,12 +87,26 @@ export default function FerreControl() {
       series: grouped,
       ranking: per,
     };
-  }, [days, filtered]);
+  }, [days, filtered, anchorDate]);
 
-  const low = filtered.filter(({ p }) => p.stock <= p.min);
+  const stockOf = (p: P) => Math.max(0, p.baseStock + (restock[p.sku] || 0) - (ranking[p.sku] ?? 0));
+  const low = filtered.filter(({ p }) => stockOf(p) <= p.min);
   const rows = filtered
-    .filter(({ p }) => (!onlyLow || p.stock <= p.min) && (p.name + p.sku).toLowerCase().includes(q.toLowerCase()))
+    .filter(({ p }) => (!onlyLow || stockOf(p) <= p.min) && (p.name + p.sku).toLowerCase().includes(q.toLowerCase()))
     .map(({ p }) => p);
+
+  function handleRestock(p: P) {
+    const qty = Math.max(p.min * 2, 10);
+    setRestock((prev) => ({ ...prev, [p.sku]: (prev[p.sku] || 0) + qty }));
+    setNotice(`Reposición simulada: +${qty} uds de ${p.name}`);
+    setTimeout(() => setNotice(""), 2400);
+  }
+
+  function requestRestockWa(p: P, currentStock: number) {
+    const suggested = Math.max(p.min * 2 - currentStock, p.min);
+    const msg = `Hola, solicitud de reposición desde FerreControl (DEMO):\n\nSKU: ${p.sku}\nProducto: ${p.name}\nStock actual simulado: ${currentStock} (mínimo ${p.min})\nCantidad sugerida: ${suggested} unidades`;
+    window.open(whatsappLink(msg), "_blank", "noopener");
+  }
 
   const catSales = useMemo(() => {
     const out: Record<string, number> = {};
@@ -184,35 +208,55 @@ export default function FerreControl() {
 
         <div className={`${card} p-5 mt-5`}>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="font-semibold text-sm">Inventario</h2>
+            <div>
+              <h2 className="font-semibold text-sm">Inventario simulado (descuenta ventas del período)</h2>
+              <p className="text-xs text-slate-400">Datos ficticios de demostración · Puedes simular reposiciones en ítems críticos.</p>
+            </div>
             <div className="flex flex-wrap gap-2 items-center">
               <label className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10"><Search size={15} className="text-slate-400" />
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto o SKU" className="outline-none bg-transparent" />
+                <input aria-label="Buscar producto o SKU" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto o SKU" className="outline-none bg-transparent" />
               </label>
               <button onClick={() => setOnlyLow(!onlyLow)} className={`text-sm rounded-lg px-3 py-1.5 border transition ${onlyLow ? "bg-red-600 border-red-600 text-white" : "border-slate-200 hover:bg-slate-50"}`}>Solo stock crítico</button>
             </div>
           </div>
+          {notice && <p className="mb-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium px-3 py-2">{notice}</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400 border-b border-slate-100"><th className="py-2 font-medium">SKU</th><th className="font-medium">Producto</th><th className="font-medium">Categoría</th><th className="text-right font-medium">Precio</th><th className="text-right font-medium">Vendidas</th><th className="text-right font-medium">Stock</th><th className="text-center font-medium">Estado</th></tr></thead>
+              <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-400 border-b border-slate-100"><th className="py-2 font-medium">SKU</th><th className="font-medium">Producto</th><th className="font-medium">Categoría</th><th className="text-right font-medium">Precio</th><th className="text-right font-medium">Vendidas</th><th className="text-right font-medium">Stock</th><th className="text-center font-medium">Estado</th><th className="text-right font-medium">Acción</th></tr></thead>
               <tbody>
                 {rows.map((p) => {
-                  const crit = p.stock <= p.min;
+                  const currentStock = stockOf(p);
+                  const crit = currentStock <= p.min;
                   return (
                     <tr key={p.sku} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition">
                       <td className="py-3 text-slate-400 tabular-nums">{p.sku}</td><td className="font-medium">{p.name}</td><td className="text-slate-600">{p.cat}</td>
                       <td className="text-right tabular-nums">{cop(p.price)}</td><td className="text-right tabular-nums">{ranking[p.sku] ?? 0}</td>
-                      <td className="text-right tabular-nums">{p.stock} <span className="text-slate-400">/ mín {p.min}</span></td>
+                      <td className="text-right tabular-nums">{currentStock} <span className="text-slate-400">/ mín {p.min}</span></td>
                       <td className="text-center"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${crit ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"}`}><span className={`h-1.5 w-1.5 rounded-full ${crit ? "bg-red-500" : "bg-emerald-500"}`} />{crit ? "Stock crítico" : "Normal"}</span></td>
+                      <td className="text-right py-2">
+                        {crit ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button onClick={() => handleRestock(p)} className="inline-flex items-center gap-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-2.5 py-1.5 transition"><Plus size={12} /> Reponer</button>
+                            <button onClick={() => requestRestockWa(p, currentStock)} title="Enviar solicitud por WhatsApp" className="inline-flex items-center gap-1 rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-medium px-2 py-1.5 transition"><MessageCircle size={12} /> Pedir</button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
-                {!rows.length && <tr><td colSpan={7} className="py-10 text-center text-slate-500">Sin resultados para tu búsqueda.</td></tr>}
+                {!rows.length && <tr><td colSpan={8} className="py-10 text-center text-slate-500">Sin resultados para tu búsqueda.</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+      <DemoCtaBanner
+        demoName="FerreControl"
+        headline="¿Necesitas controlar inventario, ventas y alertas de stock?"
+        description="Diseño tableros y sistemas de control de negocio para ferreterías, distribuidoras y comercios que hoy llevan todo en hojas sueltas."
+      />
     </div>
   );
 }

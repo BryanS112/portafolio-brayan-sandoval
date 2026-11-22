@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Wifi, Wind, Waves, Coffee, Tv, Bath, MessageCircle, Moon, Users, CalendarDays, Check } from "lucide-react";
 import DemoBar from "@/components/DemoBar";
+import DemoCtaBanner from "@/components/DemoCtaBanner";
 import Photo from "@/components/Photo";
 import Reveal from "@/components/Reveal";
 import { cop, whatsappLink, DEMO_BADGE } from "@/config/site";
+import { addDays, daysDiff, localIsoDate } from "@/lib/date";
 
 const ROOMS = [
   { id: "std", name: "Habitación Brisa", price: 280000, cap: 2, img: "1582719508461-905c673771fd", desc: "Acogedora, con balcón y vista al jardín.", am: [[Wifi, "Wi-Fi"], [Wind, "Aire acondicionado"], [Tv, "TV smart"]] },
@@ -14,29 +16,32 @@ const ROOMS = [
   { id: "vil", name: "Villa Coral", price: 780000, cap: 5, img: "1566073771259-6a8506099945", desc: "Privada con piscina y terraza frente al mar.", am: [[Wifi, "Wi-Fi"], [Waves, "Piscina"], [Coffee, "Desayuno"], [Wind, "Aire acondicionado"]] },
 ] as const;
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 export default function CaribeStay() {
   const [room, setRoom] = useState<string>("std");
+  const [todayStr, setTodayStr] = useState("");
   const [inD, setIn] = useState("");
   const [outD, setOut] = useState("");
   const [guests, setGuests] = useState(2);
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
 
+  useEffect(() => {
+    setTodayStr(localIsoDate());
+  }, []);
+
   const r = ROOMS.find((x) => x.id === room)!;
   const nights = useMemo(() => {
     if (!inD || !outD) return 0;
-    const d = (new Date(outD).getTime() - new Date(inD).getTime()) / 86400000;
-    return d > 0 ? Math.round(d) : 0;
+    const d = daysDiff(outD, inD);
+    return d > 0 ? d : 0;
   }, [inD, outD]);
   const total = nights * r.price;
 
-  function pickRoom(id: string) {
+  function selectRoom(id: string, scroll = false) {
     setRoom(id);
     const cap = ROOMS.find((x) => x.id === id)!.cap;
     if (guests > cap) setGuests(cap);
-    document.getElementById("reserva")?.scrollIntoView({ behavior: "smooth" });
+    if (scroll) document.getElementById("reserva")?.scrollIntoView({ behavior: "smooth" });
   }
 
   function send() {
@@ -92,7 +97,7 @@ export default function CaribeStay() {
                     </ul>
                     <div className="mt-auto pt-6">
                       <p className="font-serif-resort text-3xl">{cop(x.price)} <span className="font-sans text-xs text-[#0F292E]/60">/ noche</span></p>
-                      <button onClick={() => pickRoom(x.id)} className={`mt-4 w-full py-3 text-xs tracking-[0.2em] uppercase font-medium transition flex items-center justify-center gap-2 ${room === x.id ? "bg-[#5E6B3E] text-white" : "bg-[#0F292E] text-white hover:bg-[#1b4048]"}`}>
+                      <button onClick={() => selectRoom(x.id, true)} className={`mt-4 w-full py-3 text-xs tracking-[0.2em] uppercase font-medium transition flex items-center justify-center gap-2 ${room === x.id ? "bg-[#5E6B3E] text-white" : "bg-[#0F292E] text-white hover:bg-[#1b4048]"}`}>
                         {room === x.id ? <><Check size={14} /> Seleccionada</> : "Seleccionar"}
                       </button>
                     </div>
@@ -119,16 +124,16 @@ export default function CaribeStay() {
               <h2 className="font-serif-resort text-5xl mt-3 tracking-tight flex items-center gap-3"><CalendarDays size={34} strokeWidth={1.2} /> Cotiza tu reserva</h2>
               <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5 mt-10">
                 <label className={lbl}>Habitación
-                  <select value={room} onChange={(e) => pickRoom(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`}>{ROOMS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                  <select value={room} onChange={(e) => selectRoom(e.target.value, false)} className={`${field} normal-case tracking-normal text-[#0F292E]`}>{ROOMS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
                 </label>
                 <label className={lbl}>Huéspedes (máx. {r.cap})
                   <input type="number" min={1} max={r.cap} value={guests} onChange={(e) => setGuests(Math.min(r.cap, Math.max(1, Number(e.target.value) || 1)))} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
                 </label>
                 <label className={lbl}>Fecha de entrada
-                  <input type="date" min={today()} value={inD} onChange={(e) => { setIn(e.target.value); if (outD && outD <= e.target.value) setOut(""); }} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                  <input type="date" min={todayStr || undefined} value={inD} onChange={(e) => { setIn(e.target.value); if (outD && outD <= e.target.value) setOut(""); }} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
                 </label>
                 <label className={lbl}>Fecha de salida
-                  <input type="date" min={inD || today()} value={outD} onChange={(e) => setOut(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
+                  <input type="date" min={inD ? addDays(inD, 1) : todayStr || undefined} value={outD} onChange={(e) => setOut(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
                 </label>
                 <label className={`${lbl} sm:col-span-2`}>Tu nombre
                   <input value={name} onChange={(e) => setName(e.target.value)} className={`${field} normal-case tracking-normal text-[#0F292E]`} />
@@ -144,6 +149,11 @@ export default function CaribeStay() {
           </Reveal>
         </section>
       </main>
+      <DemoCtaBanner
+        demoName="Caribe Stay"
+        headline="¿Administras un hotel, hostal o cabañas y quieres cotizar directo?"
+        description="Desarrollo páginas de reservas, catálogos de habitaciones y cotizadores por fechas conectados a WhatsApp para hoteles y alojamientos."
+      />
       <footer className="border-t border-[#0F292E]/10 py-8 text-center text-xs tracking-widest uppercase text-[#0F292E]/50">Caribe Stay · Hotel ficticio de demostración</footer>
     </div>
   );
