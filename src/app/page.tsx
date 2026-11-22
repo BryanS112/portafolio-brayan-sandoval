@@ -54,39 +54,6 @@ const services = [
   },
 ];
 
-function MiniDashboard() {
-  return (
-    <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200 p-4 flex flex-col gap-2">
-      <div className="grid grid-cols-3 gap-2">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-8 rounded-md bg-white shadow-sm border border-slate-200/70" />
-        ))}
-      </div>
-      <div className="flex-1 rounded-md bg-white shadow-sm border border-slate-200/70 p-2">
-        <svg viewBox="0 0 200 60" className="w-full h-full" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="mg" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor="#0891b2" stopOpacity=".4" />
-              <stop offset="1" stopColor="#0891b2" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path d="M0 45 L25 38 L50 42 L75 25 L100 30 L125 15 L150 22 L175 8 L200 12 V60 H0Z" fill="url(#mg)" />
-          <path d="M0 45 L25 38 L50 42 L75 25 L100 30 L125 15 L150 22 L175 8 L200 12" fill="none" stroke="#0891b2" strokeWidth="2" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-function MiniCalendar() {
-  return (
-    <div className="h-full w-full bg-slate-50 p-4 grid grid-cols-7 gap-1.5 content-center">
-      {Array.from({ length: 21 }).map((_, i) => (
-        <div key={i} className={`aspect-square rounded-md ${i === 9 ? "bg-sky-600" : i % 5 === 0 ? "bg-slate-200/70" : "bg-sky-100/70 border border-sky-200/80"}`} />
-      ))}
-    </div>
-  );
-}
-
 const demos = [
   {
     slug: "sabanagrill",
@@ -116,7 +83,7 @@ const demos = [
     need: "Enfocado en ferreterías, distribuidoras y comercios que requieren visibilidad de ventas, márgenes y stock mínimo.",
     problem: "No se sabe qué se vende más ni qué productos están por agotarse.",
     tech: ["Recharts", "TypeScript", "Filtros dinámicos"],
-    preview: <MiniDashboard />,
+    preview: <Photo id="1530124566582-a618bc2615dc" alt="Herramientas de ferretería organizadas en estante" className="h-full w-full bg-slate-800" sizes="(max-width: 768px) 100vw, 50vw" />,
   },
   {
     slug: "smartbooking",
@@ -126,7 +93,7 @@ const demos = [
     need: "Adecuado para clínicas, consultorios, barberías y centros de servicios que agendan por horarios.",
     problem: "Agendar por llamada genera cruces de horarios y citas olvidadas.",
     tech: ["React", "localStorage", "Flujo por pasos"],
-    preview: <MiniCalendar />,
+    preview: <Photo id="1629909613654-28e377c37b09" alt="Consultorio odontológico moderno" className="h-full w-full bg-sky-900" sizes="(max-width: 768px) 100vw, 50vw" />,
   },
   {
     slug: "ironclub",
